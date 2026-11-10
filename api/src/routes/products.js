@@ -3,6 +3,7 @@ const router = require('express').Router();
 const multer = require('multer');
 const Product = require('../models/Product');
 const auth = require('../middleware/auth');
+const produtorValidado = require('../middleware/produtorValidado');
 const porFazer = require('./_naoImplementado');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -27,16 +28,16 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', porFazer('Detalhe de um produto'));
 
 // POST /api/products  (produtor)  -> 201 + Location
-router.post('/', auth('produtor'), porFazer('Criar produto do produtor autenticado'));
+router.post('/', auth('produtor'), produtorValidado, porFazer('Criar produto do produtor autenticado'));
 
 // PUT /api/products/:id  (produtor dono)  -> 200 | 404
-router.put('/:id', auth('produtor'), porFazer('Atualizar produto'));
+router.put('/:id', auth('produtor'), produtorValidado, porFazer('Atualizar produto'));
 
 // DELETE /api/products/:id  (produtor dono)  -> 204 | 404
-router.delete('/:id', auth('produtor'), porFazer('Remover produto'));
+router.delete('/:id', auth('produtor'), produtorValidado, porFazer('Remover produto'));
 
 // POST /api/products/:id/imagem  (multipart, campo "imagem")  -> 200 { imagemUrl }
 // TODO (Passo 8): usar services/imagens.js para enviar req.file para o storage da Cloud
-router.post('/:id/imagem', auth('produtor'), upload.single('imagem'), porFazer('Upload da imagem do produto'));
+router.post('/:id/imagem', auth('produtor'), produtorValidado, upload.single('imagem'), porFazer('Upload da imagem do produto'));
 
 module.exports = router;
