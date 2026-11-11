@@ -1,16 +1,29 @@
-// Estado global da sessão (utilizador + token)
 import { createContext, useContext, useState } from 'react';
+import { api } from '../api/client.js';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [sessao, setSessao] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sessao')) || null; } catch { return null; }
+    try {
+      return JSON.parse(localStorage.getItem('sessao')) || null;
+    } catch {
+      return null;
+    }
   });
 
-  // TODO (Passo 6): chamar POST /api/auth/login e guardar { token, utilizador }
-  async function entrar(email, password) { // eslint-disable-line no-unused-vars
-    throw new Error('Login por implementar');
+  async function entrar(email, password) {
+    const resposta = await api('/auth/login', {
+      metodo: 'POST',
+      corpo: { email, password }
+    });
+
+    guardarSessao({
+      token: resposta.token,
+      utilizador: resposta.utilizador
+    });
+
+    return resposta.utilizador;
   }
 
   function sair() {
@@ -24,11 +37,15 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{
-      utilizador: sessao?.utilizador || null,
-      token: sessao?.token || null,
-      entrar, sair, guardarSessao
-    }}>
+    <AuthContext.Provider
+      value={{
+        utilizador: sessao?.utilizador || null,
+        token: sessao?.token || null,
+        entrar,
+        sair,
+        guardarSessao
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

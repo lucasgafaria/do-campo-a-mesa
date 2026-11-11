@@ -24,8 +24,25 @@ export default function Catalogo() {
         p.nome.toLowerCase().includes(filtro.q.toLowerCase())));
       return;
     }
-    const q = new URLSearchParams(filtro);
-    api(`/products?${q}`).then(setProdutos).catch((e) => setErro(e.message));
+    const parametros = new URLSearchParams();
+
+if (filtro.q) {
+  parametros.set('q', filtro.q);
+}
+
+if (filtro.categoria !== 'Todos') {
+  parametros.set('categoria', filtro.categoria);
+}
+
+if (filtro.bio) {
+  parametros.set('bio', 'true');
+}
+
+const query = parametros.toString();
+
+api(`/products${query ? `?${query}` : ''}`)
+  .then(setProdutos)
+  .catch((e) => setErro(e.message));
   }, [filtro]);
 
   const mudar = (campo) => (e) =>

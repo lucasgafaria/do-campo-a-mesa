@@ -22,8 +22,15 @@ export default function Navbar() {
               <li className="nav-item"><NavLink to="/encomendas" className="nav-link">Encomendas</NavLink></li>
             )}
             {utilizador?.papel === 'produtor' && (
-              <li className="nav-item"><NavLink to="/produtor" className="nav-link">Painel</NavLink></li>
-            )}
+		  <>
+		    <li className="nav-item">
+		      <NavLink to="/produtor" className="nav-link">Painel</NavLink>
+		    </li>
+		    <li className="nav-item">
+		      <NavLink to="/encomendas" className="nav-link">Encomendas</NavLink>
+		    </li>
+		  </>
+		)}
             {utilizador?.papel === 'admin' && (
               <li className="nav-item"><NavLink to="/admin" className="nav-link">Administração</NavLink></li>
             )}

@@ -32,6 +32,9 @@ export default function App() {
           <Route element={<RotaProtegida papeis={['comprador']} />}>
             <Route path="/leiloes/:id" element={<SalaLeilao />} />
             <Route path="/carrinho" element={<Carrinho />} />
+          </Route>
+
+          <Route element={<RotaProtegida papeis={['comprador', 'produtor']} />}>
             <Route path="/encomendas" element={<Encomendas />} />
           </Route>
 
