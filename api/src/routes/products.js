@@ -6,7 +6,7 @@ const multer = require('multer');
 const Product = require('../models/Product');
 const auth = require('../middleware/auth');
 const produtorValidado = require('../middleware/produtorValidado');
-const porFazer = require('./_naoImplementado');
+const { guardarImagem } = require('../services/imagens');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -238,12 +238,57 @@ router.delete('/:id', auth('produtor'), produtorValidado, async (req, res, next)
 });
 
 // Upload de imagem: sera implementado na etapa de Cloud Storage.
+
+// POST /api/products/:id/imagem
 router.post(
   '/:id/imagem',
   auth('produtor'),
   produtorValidado,
   upload.single('imagem'),
-  porFazer('Upload da imagem do produto')
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+
+      if (!mongoose.isValidObjectId(id)) {
+        return res.status(400).json({
+          erro: 'ID de produto invalido'
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          erro: 'Envie uma imagem no campo imagem'
+        });
+      }
+
+      // Confirma que o produto pertence ao produtor autenticado.
+      const produto = await Product.findOne({
+        _id: id,
+        produtor: req.user.id
+      });
+
+      if (!produto) {
+        return res.status(404).json({
+          erro: 'Produto nao encontrado ou nao pertence ao produtor'
+        });
+      }
+
+      // Envia a imagem ao Azure Blob Storage.
+      const imagemUrl = await guardarImagem(req.file);
+
+      // Salva a URL retornada pelo Azure no MongoDB.
+      produto.imagemUrl = imagemUrl;
+      await produto.save();
+
+      res.json({
+        mensagem: 'Imagem enviada com sucesso',
+        produto
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 );
+
 
 module.exports = router;

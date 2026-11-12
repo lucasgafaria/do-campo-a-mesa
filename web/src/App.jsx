@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar.jsx';
 import RotaProtegida from './components/RotaProtegida.jsx';
 import Catalogo from './pages/Catalogo.jsx';
+import Produtos from './pages/produtor/Produtos.jsx';
 import Produtor from './pages/Produtor.jsx';
 import Leiloes from './pages/Leiloes.jsx';
 import SalaLeilao from './pages/SalaLeilao.jsx';
@@ -40,6 +41,7 @@ export default function App() {
 
           {/* Produtor */}
           <Route element={<RotaProtegida papeis={['produtor']} />}>
+            <Route path="/produtor/produtos" element={<Produtos />} />
             <Route path="/produtor" element={<PainelProdutor />} />
             <Route path="/produtor/leiloes/novo" element={<NovoLeilao />} />
           </Route>
