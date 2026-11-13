@@ -31,11 +31,14 @@ export default function SalaLeilao() {
   participantes,
   erro,
   carregando,
+  encerramento,
   licitar
 } = useLeilao(id, token);
 
   const [valor, setValor] = useState('');
   const [erroFormulario, setErroFormulario] = useState('');
+
+ 
 
   if (carregando && !leilao) {
     return <main className="container py-4">
@@ -72,6 +75,12 @@ export default function SalaLeilao() {
     atual?.valor ?? leilao.licitacaoAtual?.valor ?? leilao.precoBase
   );
 
+ const estadoFinal = encerramento || (
+    estadoAtual === 'terminado'
+      ? { valorFinal: valorAtual, vencedor: leilao.licitacaoAtual?.comprador }
+      : null
+  );
+
   const incremento = Number(leilao.incremento);
   const proximaOferta = valorAtual + incremento;
 
@@ -84,7 +93,7 @@ export default function SalaLeilao() {
     !ehProdutor &&
     estadoAtual === 'ativo';
 
-  function enviarLicitacao(e) {
+ async function enviarLicitacao(e) {
   e.preventDefault();
   setErroFormulario('');
 
@@ -97,8 +106,11 @@ export default function SalaLeilao() {
     return;
   }
 
-  licitar(oferta);
-  setValor('');
+  const aceita = await licitar(oferta);
+
+  if (aceita) {
+    setValor('');
+  }
 }
 
 
@@ -126,6 +138,20 @@ export default function SalaLeilao() {
           </strong>
         </p>
       </div>
+      
+            {estadoFinal && (
+        <div className="alert alert-info mb-4">
+          <strong>Leilão encerrado!</strong>
+          {encerramento?.mensagem && (
+            <p className="mb-1">{encerramento.mensagem}</p>
+          )}
+          {estadoFinal.valorFinal != null && (
+            <p className="mb-0">
+              Valor final: {moeda(estadoFinal.valorFinal)}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="row g-4">
         <section className="col-12 col-lg-7">

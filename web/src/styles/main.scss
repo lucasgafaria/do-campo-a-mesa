@@ -4,7 +4,7 @@
 @import 'mixins';
 @import 'catalogo';
 
-.barra-topo { background: #fff; border-bottom: 1px solid $linha; }
+.barra-topo { background: #fundo; border-bottom: 1px solid $linha; }
 .marca { font-family: Georgia, serif; font-weight: 700; color: $tinta; }
 .texto-secundario { color: $texto-secundario; }
 

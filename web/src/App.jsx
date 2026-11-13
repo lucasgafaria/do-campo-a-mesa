@@ -15,6 +15,7 @@ import PainelProdutor from './pages/produtor/Painel.jsx';
 import NovoLeilao from './pages/produtor/NovoLeilao.jsx';
 import PainelAdmin from './pages/admin/Painel.jsx';
 import NaoEncontrado from './pages/NaoEncontrado.jsx';
+import Produtores from './pages/Produtores.jsx';  
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/leiloes" element={<Leiloes />} />
           <Route path="/login" element={<Login />} />
           <Route path="/registo" element={<Registo />} />
+          <Route path="/produtores" element={<Produtores />} />
 
           {/* Comprador */}
           <Route element={<RotaProtegida papeis={['comprador']} />}>

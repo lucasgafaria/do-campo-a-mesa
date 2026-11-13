@@ -1,17 +1,24 @@
-// Passo 1: variáveis do tema (redefinem as do Bootstrap antes de o importar)
-$verde: #2F5D3A;
-$verde-escuro: #22452B;
-$terracota: #A94A26;
-$fundo: #F6F2EA;
-$tinta: #1F2A1E;
-$texto-secundario: #5A6354;
-$linha: #E3DACA;
+// Paleta de cores: identidade visual Do Campo à Mesa
+$verde: #65734B;
+$verde-escuro: #465437;
+
+$terracota: #A6533B;
+$terracota-escuro: #85412F;
+$argila: #D68B6B;
+
+$fundo: #F8F5F0;
+$tinta: #3D342F;
+$texto-secundario: #2A2E45;
+$linha: #000000;
 
 // Variáveis do Bootstrap
-$primary: $verde;
+$primary: $terracota;
 $success: $verde;
 $body-bg: $fundo;
 $body-color: $tinta;
+$link-color: $terracota;
+$link-hover-color: $terracota-escuro;
+
 $border-radius: .75rem;
 $font-family-sans-serif: system-ui, -apple-system, "Segoe UI", sans-serif;
 

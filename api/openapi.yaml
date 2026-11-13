@@ -1,97 +1,306 @@
-# Passo 5: especificação OpenAPI da API. Validar no Swagger Editor (https://editor.swagger.io).
-# Está documentado apenas o recurso /products como exemplo.
-# TODO: documentar /auth, /producers, /orders, /auctions, /reviews e /admin.
+
 openapi: 3.0.3
+
 info:
-  title: Do Campo à Mesa API
-  version: 0.1.0
-  description: API REST do mercado digital de produtores locais.
+  title: Do Campo à Mesa
+  description: API do mercado digital de produtores locais.
+  version: 1.0.0
+
 servers:
   - url: http://localhost:3000/api
+
 paths:
+
+  /health:
+    get:
+      summary: Verificar se a API está funcionando
+      responses:
+        '200':
+          description: API funcionando
+
+  /auth/registo:
+    post:
+      summary: Cadastrar usuário
+      responses:
+        '201':
+          description: Usuário cadastrado
+        '400':
+          description: Dados inválidos
+
+  /auth/login:
+    post:
+      summary: Fazer login
+      responses:
+        '200':
+          description: Login realizado
+        '401':
+          description: Credenciais inválidas
+
+  /auth/eu:
+    get:
+      summary: Consultar usuário autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dados do usuário
+
   /products:
     get:
-      tags: [Produtos]
-      summary: Pesquisar produtos
-      parameters:
-        - { name: q, in: query, description: Texto no nome, schema: { type: string } }
-        - { name: categoria, in: query, schema: { type: string } }
-        - { name: precoMax, in: query, schema: { type: number } }
-        - { name: bio, in: query, schema: { type: boolean } }
+      summary: Listar produtos
       responses:
         '200':
           description: Lista de produtos
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/Product' }
+
     post:
-      tags: [Produtos]
-      summary: Criar produto (produtor)
-      security: [ { bearerAuth: [] } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ProductInput' }
+      summary: Cadastrar produto
+      security:
+        - bearerAuth: []
       responses:
-        '201': { description: Produto criado }
-        '400': { description: Dados inválidos }
-        '401': { description: Token em falta ou inválido }
-        '403': { description: Utilizador não é produtor }
+        '201':
+          description: Produto cadastrado
+        '403':
+          description: Acesso não permitido
+
   /products/{id}:
-    parameters:
-      - { name: id, in: path, required: true, schema: { type: string } }
     get:
-      tags: [Produtos]
-      summary: Detalhe de um produto
+      summary: Consultar produto
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          description: Produto
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Product' }
-        '404': { description: Não encontrado }
+          description: Produto encontrado
+
     put:
-      tags: [Produtos]
-      summary: Atualizar produto (produtor dono)
-      security: [ { bearerAuth: [] } ]
-      requestBody:
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ProductInput' }
+      summary: Atualizar produto
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
-        '200': { description: Produto atualizado }
-        '404': { description: Não encontrado }
+        '200':
+          description: Produto atualizado
+
     delete:
-      tags: [Produtos]
-      summary: Remover produto (produtor dono)
-      security: [ { bearerAuth: [] } ]
+      summary: Excluir produto
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
-        '204': { description: Removido }
-        '404': { description: Não encontrado }
+        '204':
+          description: Produto excluído
+
+  /producers:
+    get:
+      summary: Listar produtores
+      responses:
+        '200':
+          description: Lista de produtores
+
+  /producers/{id}:
+    get:
+      summary: Consultar página de um produtor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dados do produtor
+
+  /orders:
+    get:
+      summary: Listar encomendas
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de encomendas
+
+    post:
+      summary: Criar encomenda
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Encomenda criada
+
+  /orders/{id}:
+    get:
+      summary: Consultar encomenda
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dados da encomenda
+
+  /orders/{id}/estado:
+    patch:
+      summary: Atualizar estado da encomenda
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Estado atualizado
+
+  /auctions:
+    get:
+      summary: Listar leilões
+      responses:
+        '200':
+          description: Lista de leilões
+
+    post:
+      summary: Criar leilão
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Leilão criado
+
+  /auctions/{id}:
+    get:
+      summary: Consultar leilão
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dados do leilão
+
+  /auctions/{id}/bids:
+    get:
+      summary: Consultar lances de um leilão
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de lances
+
+  /reviews:
+    get:
+      summary: Listar avaliações
+      responses:
+        '200':
+          description: Lista de avaliações
+
+    post:
+      summary: Criar avaliação
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Avaliação criada
+
+  /reviews/{id}/denuncia:
+    post:
+      summary: Denunciar avaliação
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Denúncia registrada
+
+  /admin/estatisticas:
+    get:
+      summary: Consultar estatísticas administrativas
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Estatísticas do sistema
+
+  /admin/produtores/pendentes:
+    get:
+      summary: Listar produtores pendentes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de produtores
+
+  /admin/produtores/{id}/validacao:
+    patch:
+      summary: Aprovar ou rejeitar produtor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Validação atualizada
+
+  /admin/reviews/denunciadas:
+    get:
+      summary: Listar avaliações denunciadas
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de avaliações
+
+  /admin/reviews/{id}:
+    patch:
+      summary: Ocultar ou reativar avaliação
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Moderação atualizada
+
 components:
   securitySchemes:
-    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
-  schemas:
-    ProductInput:
-      type: object
-      required: [nome, categoria, preco]
-      properties:
-        nome: { type: string, example: Kiwi Hayward }
-        categoria: { type: string, enum: [Hortícolas, Fruta, Mel, Vinho, Queijo, Padaria, Outros] }
-        preco: { type: number, example: 2.4 }
-        unidade: { type: string, example: kg }
-        stock: { type: integer, example: 300 }
-        biologico: { type: boolean }
-        epocas: { type: array, items: { type: string } }
-    Product:
-      allOf:
-        - $ref: '#/components/schemas/ProductInput'
-        - type: object
-          properties:
-            _id: { type: string }
-            produtor: { type: string, description: Id do produtor (ou objeto com populate) }
-            imagemUrl: { type: string }
-    # TODO: User, Order, Auction, Bid, Review, Erro
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

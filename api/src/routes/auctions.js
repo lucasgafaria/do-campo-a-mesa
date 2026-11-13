@@ -120,25 +120,6 @@ router.get('/', async (req, res, next) => {
   try {
     const agora = new Date();
 
-    // Atualiza leilões cujo período já começou
-    await Auction.updateMany(
-      {
-        estado: 'agendado',
-        iniciaEm: { $lte: agora },
-        terminaEm: { $gt: agora }
-      },
-      { $set: { estado: 'ativo' } }
-    );
-
-    // Atualiza leilões cujo período terminou
-    await Auction.updateMany(
-      {
-        estado: { $in: ['agendado', 'ativo'] },
-        terminaEm: { $lte: agora }
-      },
-      { $set: { estado: 'terminado' } }
-    );
-
     const { estado } = req.query;
     const filtro = {};
 

@@ -17,6 +17,9 @@ export default function Navbar() {
         <div className="collapse navbar-collapse" id="menu">
           <ul className="navbar-nav me-auto">
             <li className="nav-item"><NavLink to="/" end className="nav-link">Produtos</NavLink></li>
+<li className="nav-item">
+  <NavLink to="/produtores" className="nav-link">Produtores</NavLink>
+</li>
             <li className="nav-item"><NavLink to="/leiloes" className="nav-link">Leilões</NavLink></li>
             {utilizador?.papel === 'comprador' && (
               <li className="nav-item"><NavLink to="/encomendas" className="nav-link">Encomendas</NavLink></li>

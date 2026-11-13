@@ -1,6 +1,6 @@
 
 // Cliente HTTP da API: junta o URL base e o token JWT a cada pedido.
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+export const API_URL = import.meta.env.VITE_API_URL ?? '';
 export const USAR_DADOS_SIMULADOS = import.meta.env.VITE_USAR_DADOS_SIMULADOS === 'true';
 
 export async function api(caminho, { metodo = 'GET', corpo, token } = {}) {

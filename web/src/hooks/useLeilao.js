@@ -12,6 +12,7 @@ export function useLeilao(id, token) {
   const [participantes, setParticipantes] = useState(0);
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(true);
+  const [encerramento, setEncerramento] = useState(null);
 
   useEffect(() => {
     if (!token || !id) return undefined;
@@ -48,10 +49,36 @@ export function useLeilao(id, token) {
       carregarHistorico();
     });
 
+    // Atualiza a sala quando o servidor inicia o leilão.
+    socket.on('iniciado', () => {
+      setLeilao((anterior) => anterior
+        ? { ...anterior, estado: 'ativo' }
+        : anterior
+      );
+    });
+
+    socket.on('terminado', (dados) => {
+      setEncerramento(dados);
+
+      setLeilao((anterior) => anterior
+        ? { ...anterior, estado: 'terminado' }
+        : anterior
+      );
+    });
+
+    socket.on('leilao-ganho', (dados) => {
+      setEncerramento(dados);
+    });
+
+    socket.on('leilao-terminado', (dados) => {
+      setEncerramento(dados);
+    });
+
     socket.on('nova-licitacao', (dados) => {
-  setAtual(dados);
-  carregarHistorico();
-});
+      setAtual(dados);
+      carregarHistorico();
+    });
+
     socket.on('presenca', setParticipantes);
 
     socket.on('recusada', (mensagem) => {
@@ -79,9 +106,28 @@ export function useLeilao(id, token) {
 
   const licitar = (valor) => {
     setErro('');
-    socketRef.current?.emit('licitar', {
-      leilaoId: id,
-      valor
+
+    if (!socketRef.current?.connected) {
+      setErro('Conexão com o leilão indisponível.');
+      return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+      socketRef.current.emit(
+        'licitar',
+        { leilaoId: id, valor },
+        (resposta) => {
+          if (!resposta?.sucesso) {
+            setErro(
+              resposta?.mensagem || 'Não foi possível registrar a oferta.'
+            );
+            resolve(false);
+            return;
+          }
+
+          resolve(true);
+        }
+      );
     });
   };
 
@@ -92,6 +138,7 @@ export function useLeilao(id, token) {
     participantes,
     erro,
     carregando,
+    encerramento,
     licitar
   };
 }

@@ -45,31 +45,40 @@ module.exports = (io, socket) => {
   });
 
   // Realizar uma licitação
-  socket.on('licitar', async (dados = {}) => {
+  
+  socket.on('licitar', async (dados = {}, confirmar) => {
+    const responder = (resultado) => {
+      if (typeof confirmar === 'function') {
+        confirmar(resultado);
+      }
+    };
+
     try {
       const { leilaoId, valor } = dados;
 
       if (socket.user.papel !== 'comprador') {
-        return socket.emit(
-          'recusada',
-          'Apenas compradores podem licitar'
-        );
+        const mensagem = 'Apenas compradores podem licitar';
+        responder({ sucesso: false, mensagem });
+        return socket.emit('recusada', mensagem);
       }
 
       if (!mongoose.Types.ObjectId.isValid(leilaoId)) {
-        return socket.emit('recusada', 'ID do leilão inválido');
+        const mensagem = 'ID do leilão inválido';
+        responder({ sucesso: false, mensagem });
+        return socket.emit('recusada', mensagem);
       }
 
       const oferta = Number(valor);
 
       if (!Number.isFinite(oferta) || oferta <= 0) {
-        return socket.emit('recusada', 'Valor da licitação inválido');
+        const mensagem = 'Valor da licitação inválido';
+        responder({ sucesso: false, mensagem });
+        return socket.emit('recusada', mensagem);
       }
 
       const agora = new Date();
 
-      // Atualização atômica: só aceita a oferta se cumprir
-      // todas as condições no momento da operação.
+      // Atualização atômica: verifica todas as condições no banco.
       const leilao = await Auction.findOneAndUpdate(
         {
           _id: leilaoId,
@@ -100,33 +109,44 @@ module.exports = (io, socket) => {
       );
 
       if (!leilao) {
-        return socket.emit(
-          'recusada',
-          'Licitação recusada: verifique o valor mínimo e o estado do leilão'
-        );
+        const mensagem =
+          'Licitação recusada: verifique o valor mínimo e o estado do leilão';
+
+        responder({ sucesso: false, mensagem });
+        return socket.emit('recusada', mensagem);
       }
 
-      // Registra a oferta no histórico
       const licitacao = await Bid.create({
         leilao: leilaoId,
         comprador: socket.user.id,
         valor: oferta
       });
 
-      // Notifica todos os participantes da sala
-      io.to(sala(leilaoId)).emit('nova-licitacao', {
+      const resultado = {
         leilaoId,
         valor: licitacao.valor,
         comprador: socket.user.id,
         createdAt: licitacao.createdAt
+      };
+
+      io.to(sala(leilaoId)).emit('nova-licitacao', resultado);
+
+      responder({
+        sucesso: true,
+        mensagem: 'Licitação aceita',
+        licitacao: resultado
       });
+
     } catch (err) {
-      socket.emit(
-        'recusada',
-        'Não foi possível processar a licitação'
-      );
+      console.error('Erro ao processar licitação:', err.message);
+
+      const mensagem = 'Não foi possível processar a licitação';
+
+      responder({ sucesso: false, mensagem });
+      socket.emit('recusada', mensagem);
     }
   });
+
 
   // Atualizar presença quando alguém fecha a página
   socket.on('disconnecting', () => {

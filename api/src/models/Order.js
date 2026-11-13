@@ -7,6 +7,12 @@ const ESTADOS = ['pendente', 'confirmada', 'pronta', 'entregue'];
 const orderSchema = new Schema({
   comprador: { type: Types.ObjectId, ref: 'User', required: true },
   produtor: { type: Types.ObjectId, ref: 'User', required: true },
+  leilao: {
+    type: Types.ObjectId,
+    ref: 'Auction',
+    unique: true,
+    sparse: true
+  },
   linhas: [{
     produto: { type: Types.ObjectId, ref: 'Product' },
     nome: String,      // cópia do nome no momento da compra
