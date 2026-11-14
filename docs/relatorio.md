@@ -1,554 +1,561 @@
-# Relatório · Do Campo à Mesa
+# Relatório — Do Campo à Mesa
 
-**Unidade curricular:** Desenvolvimento Web e para a Cloud · Mestrado em Engenharia Informática · IPVC–ESTG
-**Aluno:** [PREENCHER: nome e número]
-**Repositório:** [PREENCHER: URL do repositório GitHub]
-**Aplicação publicada:** [PREENCHER: URL público] · **Documentação da API:** [PREENCHER: URL público]/api-docs
+**Unidade curricular:** Desenvolvimento Web e para a Cloud  
+
+**Curso:** Mestrado em Engenharia de Software — IPVC–ESTG  
+
+**Aluno:** Lucas Fernandes Gafaria Alves  
+
+**Repositório:** https://github.com/lucasgafaria/do-campo-a-mesa.git
+
+**Aplicação:** Execução local para demonstração  
+
+**Documentação da API:** http://localhost:3000/api-docs
 
 ---
 
 ## 1. Introdução
 
-O *Do Campo à Mesa* é um mercado digital que liga produtores locais (hortícolas, fruta, mel, vinho, queijo, padaria) a compradores particulares e a restaurantes. Para além da venda direta a preço fixo, a plataforma permite que os produtores coloquem lotes em **leilão em direto**, onde os compradores licitam em tempo real.
+O **Do Campo à Mesa** é uma plataforma digital que aproxima produtores agrícolas locais de compradores particulares e estabelecimentos comerciais. O sistema permite a comercialização de produtos por meio de encomendas convencionais e de leilões em tempo real.
 
-O objetivo do trabalho foi desenvolver, de forma individual, uma aplicação web completa e publicada na Cloud, cobrindo:
+O objetivo do trabalho foi desenvolver uma aplicação web que integrasse uma interface interativa, uma API própria, uma base de dados documental, mecanismos de autenticação e autorização, comunicação em tempo real e serviços de armazenamento na Cloud.
 
-- uma **SPA** responsiva (*Mobile First*) em React;
-- uma **API REST** em Node.js/Express documentada com OpenAPI (Swagger);
-- persistência em **MongoDB**, com decisões justificadas de modelação;
-- **autenticação e autorização** com JWT e papéis;
-- **comunicação em tempo real** com Socket.io para os leilões e notificações;
-- **deployment** em serviços Cloud, incluindo armazenamento de imagens.
+A solução foi desenvolvida individualmente, tendo como ponto de partida a estrutura de código fornecida pelo docente.
 
-A aplicação tem quatro intervenientes:
+As principais funcionalidades implementadas são:
 
-| Papel | O que pode fazer |
+- Consulta e pesquisa de produtos agrícolas.
+- Cadastro e autenticação de compradores e produtores.
+- Aprovação de produtores pelo administrador.
+- Gestão de produtos, preços, estoque e imagens.
+- Consulta das páginas públicas dos produtores.
+- Criação e acompanhamento de encomendas.
+- Atualização do estado das encomendas e notificações em tempo real.
+- Criação e participação em leilões.
+- Histórico de licitações e encerramento automático dos leilões.
+- Avaliação de encomendas entregues e denúncia de avaliações.
+- Painel administrativo para aprovação de produtores, moderação e consulta de estatísticas.
+
+A aplicação contempla quatro papéis:
+
+| Papel | Permissões principais |
 |---|---|
-| Visitante | Consultar o catálogo, pesquisar e filtrar produtos, ver produtores e leilões |
-| Comprador | Gerir o carrinho, fazer encomendas, acompanhar o estado, licitar em leilões, avaliar e denunciar avaliações |
-| Produtor | Gerir os seus produtos (com imagem), criar leilões, gerir o estado das encomendas recebidas |
-| Administrador | Validar produtores, moderar avaliações denunciadas, consultar estatísticas |
+| Visitante | Consultar produtos, produtores e leilões; realizar cadastro e login |
+| Comprador | Gerenciar carrinho, criar encomendas, acompanhar pedidos, licitar e avaliar |
+| Produtor | Gerenciar produtos e imagens, criar leilões e atualizar encomendas |
+| Administrador | Aprovar produtores, moderar avaliações e consultar estatísticas |
 
-Os produtores só podem vender depois de o administrador validar a conta.
-
----
+A autorização não depende apenas da interface. As permissões são verificadas também no servidor, por meio de tokens JWT e middlewares específicos.
 
 ## 2. Arquitetura
 
-A solução segue uma arquitetura cliente–servidor com três camadas: a SPA no browser, um único servidor Node.js que expõe a API REST e o servidor de sockets, e os serviços de dados na Cloud.
+A aplicação utiliza uma arquitetura cliente-servidor. O frontend é desenvolvido em React, enquanto o backend utiliza Node.js e Express para disponibilizar a API REST e Socket.io para a comunicação em tempo real.
 
-```mermaid
-flowchart LR
-    subgraph Browser
-        SPA["SPA React (Vite)<br/>Bootstrap 5 + SASS"]
-    end
+O MongoDB é utilizado para persistência dos dados, e o Azure Blob Storage para armazenar as imagens dos produtos.
 
-    subgraph Servidor["Servidor Node.js (PaaS)"]
-        EXP["Express<br/>API REST /api/*"]
-        SW["Swagger UI<br/>/api-docs"]
-        IO["Socket.io<br/>salas de leilão + notificações"]
-        CICLO["Ciclo de encerramento<br/>de leilões (5 s)"]
-        STATIC["Ficheiros estáticos<br/>da SPA"]
-    end
+### 2.1 Componentes da arquitetura
 
-    DB[("MongoDB Atlas<br/>(DBaaS)")]
-    BLOB[("Azure Blob Storage<br/>imagens dos produtos")]
+**Frontend — React e Vite**
 
-    SPA -- "HTTPS + JWT (fetch)" --> EXP
-    SPA -- "WebSocket + JWT" --> IO
-    SPA -- "GET /" --> STATIC
-    SPA -- "imagens (URL público)" --> BLOB
-    EXP --> DB
-    IO --> DB
-    CICLO --> DB
-    CICLO --> IO
-    EXP -- "upload (SDK)" --> BLOB
-```
+Responsável pela interface apresentada ao usuário. Comunica-se com a API por meio de requisições HTTP e com o servidor Socket.io para receber atualizações em tempo real.
 
-**Componentes:**
+**Backend — Node.js e Express**
 
-- **SPA (React + Vite):** interface única para os quatro papéis. Comunica com a API por `fetch` (módulo `api/client.js`, que acrescenta o cabeçalho `Authorization: Bearer <token>`) e com o servidor de sockets através do `socket.io-client`.
-- **Servidor HTTP partilhado (`server.js`):** um único processo Node.js cria o servidor HTTP, monta a aplicação Express e liga-lhe o Socket.io. A instância `io` é disponibilizada às rotas (`app.set('io', io)`) para que a API possa emitir notificações (por exemplo, quando uma encomenda muda de estado).
-- **API REST (Express):** sete grupos de rotas (`auth`, `products`, `producers`, `orders`, `auctions`, `reviews`, `admin`), middleware de autenticação por papel e tratamento centralizado de erros.
-- **Servidor de sockets (Socket.io):** autenticação com o mesmo JWT da API, uma sala pessoal por utilizador (`user:<id>`) e uma sala por leilão (`leilao:<id>`).
-- **Serviço de encerramento de leilões (`services/cicloLeiloes.js`):** corre a cada 5 segundos, fecha os leilões cujo prazo terminou, cria a encomenda do vencedor e notifica os participantes.
-- **MongoDB:** base de dados documental com seis coleções (secção 5).
-- **Storage na Cloud:** as imagens dos produtos são enviadas para o Azure Blob Storage e a base de dados guarda apenas o URL.
+Responsável pelas regras de negócio, autenticação, autorização, validação dos dados e acesso à base de dados.
 
-Em produção, a SPA é compilada pelo Vite (`npm run build`) e os ficheiros gerados são servidos pelo próprio Express (pasta `public`). Assim a aplicação inteira fica num só serviço, com um único domínio, o que evita problemas de CORS e simplifica o HTTPS. As rotas desconhecidas fora de `/api` devolvem o `index.html` para que o *routing* do React funcione ao recarregar a página; as rotas desconhecidas dentro de `/api` devolvem `404` em JSON.
+**Socket.io**
 
----
+Permite a comunicação em tempo real entre os participantes dos leilões e o envio de notificações relacionadas às encomendas.
+
+**MongoDB Atlas**
+
+Armazena os usuários, produtos, encomendas, leilões, licitações e avaliações.
+
+**Azure Blob Storage**
+
+Armazena as imagens dos produtos. A aplicação mantém na base de dados o endereço público de cada imagem, em vez de armazenar o arquivo diretamente no MongoDB.
+
+### 2.2 Organização do servidor
+
+O arquivo `api/src/server.js` cria um servidor HTTP compartilhado pela aplicação Express e pelo Socket.io.
+
+Essa organização permite que a API REST e os eventos em tempo real utilizem o mesmo servidor.
+
+A instância do Socket.io também é disponibilizada à aplicação para que determinadas rotas possam emitir notificações, como acontece quando o produtor altera o estado de uma encomenda.
+
+O serviço `api/src/services/cicloLeiloes.js` executa verificações periódicas, a cada cinco segundos, para ativar leilões cujo horário de início chegou e encerrar aqueles cujo prazo terminou.
+
+### 2.3 Comunicação entre os componentes
+
+A comunicação acontece da seguinte forma:
+
+- O frontend realiza requisições HTTP para os endpoints da API.
+- O token JWT é enviado no cabeçalho `Authorization: Bearer`.
+- O Socket.io utiliza o mesmo mecanismo de autenticação por token.
+- O backend consulta e atualiza os documentos no MongoDB.
+- O serviço de imagens envia arquivos para o Azure Blob Storage.
+- O endereço retornado pelo armazenamento é salvo no documento do produto.
+
+A arquitetura foi pensada para permitir a separação entre interface, regras de negócio, persistência e serviços externos.
 
 ## 3. Frontend e SPA
 
 ### 3.1 Framework e ferramentas
 
-Foi escolhido o **React 18** com o **Vite** como ferramenta de build:
+Foi utilizado React 18 com Vite para desenvolver a aplicação de página única (SPA).
 
-- o React tem um modelo de componentes simples e um ecossistema grande (React Router, cliente Socket.io), com muita documentação;
-- os *hooks* permitem isolar a lógica de tempo real (ligação ao socket, eventos, limpeza) em funções reutilizáveis;
-- o Vite arranca o servidor de desenvolvimento quase instantaneamente e compila SASS sem configuração adicional.
+O React permite dividir a interface em componentes reutilizáveis, enquanto o Vite disponibiliza o ambiente de desenvolvimento e o processo de compilação.
 
-Para os estilos foi usado o **Bootstrap 5** personalizado com **SASS**: as variáveis do Bootstrap (`$primary`, `$success`, `$body-bg`, `$border-radius`…) são redefinidas em `_variables.scss` com a paleta da marca (verde, terracota, argila e fundo creme), de modo que todos os componentes do Bootstrap herdam a identidade visual.
+Para a construção visual foram utilizados Bootstrap 5 e SASS. O Bootstrap fornece componentes e uma estrutura de responsividade, enquanto o SASS permite organizar e personalizar os estilos.
 
 ### 3.2 Componentes e páginas
 
-| Tipo | Ficheiros | Função |
-|---|---|---|
-| Componentes | `Navbar`, `CartaoProduto`, `EstadoEncomenda`, `RotaProtegida`, `PorImplementar` | Menu adaptado ao papel, cartão de produto do catálogo, indicador visual do estado da encomenda, proteção de rotas |
-| Páginas públicas | `Catalogo`, `Produtores`, `Produtor`, `Leiloes`, `Login`, `Registo`, `NaoEncontrado` | Catálogo com pesquisa e filtros, lista e página pública de produtores, lista de leilões, autenticação |
-| Comprador | `Carrinho`, `SalaLeilao`, `Encomendas` | Carrinho e checkout, sala de leilão em direto, histórico de encomendas |
-| Produtor | `produtor/Painel`, `produtor/Produtos`, `produtor/NovoLeilao`, `Encomendas` | Painel, gestão de produtos com upload de imagem, criação de leilões, avanço do estado das encomendas |
-| Administrador | `admin/Painel` | Validação de produtores, moderação de avaliações, estatísticas |
+A aplicação possui páginas organizadas de acordo com os diferentes papéis.
 
-### 3.3 Gestão de estado
-
-O estado foi dividido por âmbito:
-
-- **Estado global com Context API:**
-  - `AuthContext` guarda o token JWT e os dados do utilizador autenticado e expõe `login`, `registo` e `logout`. A sessão é guardada no `localStorage` (chave `sessao`) para sobreviver a um *refresh* da página.
-  - `CarrinhoContext` guarda as linhas do carrinho (produto e quantidade) e as operações para adicionar, alterar e remover.
-- **Estado de tempo real em *hooks* próprios:**
-  - `useLeilao(id, token)` liga-se ao socket, entra na sala do leilão, mantém o leilão, a licitação atual, o histórico, o número de participantes e o resultado do encerramento, e expõe a função `licitar`. Ao desmontar o componente, sai da sala e desliga o socket.
-  - `useNotificacoes()` mantém uma lista de notificações recebidas na sala pessoal do utilizador (por exemplo, `encomenda-atualizada`).
-- **Estado local (`useState`)** nas páginas, para formulários, filtros e mensagens de erro.
-
-Não foi necessário usar uma biblioteca como Redux: o volume de estado partilhado é pequeno e a Context API é suficiente.
-
-### 3.4 Routing
-
-O *routing* é feito no cliente com o **React Router 6** (`App.jsx`). As rotas estão agrupadas por interveniente e as rotas privadas estão envolvidas pelo componente `RotaProtegida`, que recebe a lista de papéis permitidos:
-
-| Interveniente | Rotas |
+| Área | Funcionalidades |
 |---|---|
-| Visitante | `/`, `/produtores`, `/produtores/:id`, `/leiloes`, `/login`, `/registo` |
-| Comprador | `/carrinho`, `/leiloes/:id` |
-| Comprador e produtor | `/encomendas` |
-| Produtor | `/produtor`, `/produtor/produtos`, `/produtor/leiloes/novo` |
-| Administrador | `/admin` |
-| Qualquer outra | `NaoEncontrado` (404) |
+| Pública | Catálogo, listagem de produtores, página individual do produtor, leilões, login e cadastro |
+| Comprador | Carrinho, sala de leilão e encomendas |
+| Produtor | Painel, gerenciamento de produtos, cadastro de leilões e acompanhamento de encomendas |
+| Administrador | Painel administrativo, aprovação de produtores e moderação de avaliações |
 
-Se o utilizador não estiver autenticado, `RotaProtegida` redireciona para `/login`; se estiver autenticado mas com outro papel, redireciona para o catálogo. No caso do login, a página de origem é guardada para que o utilizador volte a ela depois de entrar. Esta proteção é apenas de usabilidade: a verdadeira autorização é feita pela API (secção 6).
+Entre os componentes reutilizáveis estão a barra de navegação, os cartões de produtos, os indicadores de estado das encomendas e o componente de proteção de rotas.
 
-### 3.5 Mobile First e breakpoints
+### 3.3 Gerenciamento de estado
 
-Os estilos base foram escritos para o ecrã de telemóvel e são acrescentados regras para ecrãs maiores através do mixin `a-partir-de()`:
+O estado da aplicação foi dividido de acordo com sua finalidade.
 
-```scss
-$breakpoints: (md: 768px, lg: 1024px, xl: 1280px);
+**Context API**
 
-@mixin a-partir-de($bp) {
-  @media (min-width: map-get($breakpoints, $bp)) { @content; }
-}
-```
+O `AuthContext` mantém os dados da sessão autenticada e disponibiliza as operações de login, cadastro e logout. A sessão é armazenada no `localStorage`, permitindo sua recuperação após a atualização da página.
 
-Exemplo na grelha do catálogo:
+O `CarrinhoContext` mantém os produtos selecionados e suas quantidades.
 
-| Largura | Colunas |
-|---|---|
-| < 768 px (telemóvel) | 1 |
-| ≥ 768 px (tablet) | 2 |
-| ≥ 1024 px (portátil) | 3 |
-| ≥ 1280 px (ecrã grande) | 4 |
+**Hooks personalizados**
 
-O mesmo mixin é usado no título principal (tamanho de letra maior em `lg`) e no layout de duas colunas (conteúdo + barra lateral de `22rem`) a partir de `lg`. Nas restantes páginas foram usadas as classes de grelha do Bootstrap (`col-md-*`, `col-lg-*`), que seguem a mesma lógica *Mobile First*.
+O hook `useLeilao(id, token)` concentra a comunicação com o Socket.io e mantém informações como o leilão, o valor atual, o histórico de licitações e a quantidade de participantes.
 
-[PREENCHER: 2 ou 3 capturas de ecrã do catálogo em telemóvel, tablet e desktop.]
+O hook `useNotificacoes()` acompanha as notificações recebidas pelo usuário.
 
----
+**Estado local**
+
+O `useState` é utilizado nos formulários, filtros, mensagens de erro e demais informações específicas de cada página.
+
+Não foi necessário utilizar Redux, pois a Context API e os estados locais atenderam às necessidades da aplicação.
+
+### 3.4 Navegação
+
+A navegação é implementada com React Router.
+
+As rotas são organizadas de acordo com os papéis dos usuários e protegidas pelo componente `RotaProtegida`.
+
+Esse componente controla o acesso às páginas privadas e redireciona usuários que não possuem a autenticação ou o papel necessário.
+
+Entretanto, a proteção visual não substitui a autorização no backend. As rotas da API também verificam o token, o papel e, quando necessário, a propriedade do recurso solicitado.
+
+### 3.5 Responsividade
+
+A interface utiliza Bootstrap e estilos personalizados em SASS para adaptar a apresentação a diferentes tamanhos de tela.
+
+Foram utilizadas classes responsivas da estrutura de grelha do Bootstrap e regras de estilo específicas para diferentes larguras.
+
+**Capturas de tela a inserir:**
+
+- ![alt text](image.png)
+- ![alt text](image-1.png)
+- ![alt text](image-2.png)
+
+As capturas devem ser obtidas diretamente da aplicação em execução.
 
 ## 4. API REST e documentação
 
-### 4.1 Recursos e verbos
+### 4.1 Organização dos recursos
 
-Todos os recursos estão sob o prefixo `/api`. Os nomes dos recursos estão no plural e as ações são expressas pelo verbo HTTP.
+A API foi desenvolvida com Express e utiliza o prefixo `/api`.
+
+Os recursos são organizados em rotas próprias, separadas por responsabilidade.
 
 | Recurso | Método e caminho | Acesso | Descrição |
 |---|---|---|---|
-| Saúde | `GET /health` | público | Verificar se a API está ativa |
-| Autenticação | `POST /auth/registo` | público | Criar conta (comprador ou produtor) |
-| | `POST /auth/login` | público | Obter token JWT |
-| | `GET /auth/eu` | autenticado | Dados do utilizador do token |
-| Produtos | `GET /products` | público | Pesquisa com `q`, `categoria`, `precoMax`, `bio`, `epoca` |
-| | `GET /products/:id` | público | Detalhe de um produto |
-| | `POST /products` | produtor validado | Criar produto |
-| | `PUT /products/:id` | produtor validado (dono) | Alterar produto |
-| | `DELETE /products/:id` | produtor validado (dono) | Remover produto |
-| | `POST /products/:id/imagem` | produtor validado (dono) | Upload da imagem (multipart, máx. 5 MB) |
-| Produtores | `GET /producers` | público | Produtores validados, com nº de produtos e avaliação média |
-| | `GET /producers/:id` | público | Página pública: dados, produtos e avaliações |
-| Encomendas | `POST /orders` | comprador | Criar encomenda (reserva o stock) |
-| | `GET /orders` | comprador, produtor | Encomendas do próprio |
-| | `GET /orders/:id` | comprador, produtor | Detalhe (só se for parte da encomenda) |
-| | `PATCH /orders/:id/estado` | produtor validado | Avançar o estado |
-| Leilões | `POST /auctions` | produtor validado | Criar leilão |
-| | `GET /auctions` | público | Listar leilões |
-| | `GET /auctions/:id` | público | Detalhe |
-| | `GET /auctions/:id/bids` | público | Histórico de licitações |
-| Avaliações | `POST /reviews` | comprador | Avaliar uma encomenda entregue |
-| | `GET /reviews` | público | Avaliações visíveis |
-| | `POST /reviews/:id/denuncia` | autenticado | Denunciar uma avaliação |
-| Administração | `GET /admin/estatisticas` | admin | Totais e contagens por estado |
-| | `GET /admin/produtores/pendentes` | admin | Produtores por validar |
-| | `PATCH /admin/produtores/:id/validacao` | admin | Validar ou recusar produtor |
-| | `GET /admin/reviews/denunciadas` | admin | Avaliações denunciadas |
-| | `PATCH /admin/reviews/:id` | admin | Ocultar ou reativar avaliação |
+| Saúde | `GET /api/health` | Público | Verificar funcionamento da API |
+| Autenticação | `POST /api/auth/registo` | Público | Criar conta |
+| Autenticação | `POST /api/auth/login` | Público | Autenticar usuário |
+| Autenticação | `GET /api/auth/eu` | Autenticado | Consultar usuário autenticado |
+| Produtos | `GET /api/products` | Público | Listar e filtrar produtos |
+| Produtos | `GET /api/products/:id` | Público | Consultar produto |
+| Produtos | `POST /api/products` | Produtor validado | Criar produto |
+| Produtos | `PUT /api/products/:id` | Produtor validado, proprietário | Atualizar produto |
+| Produtos | `DELETE /api/products/:id` | Produtor validado, proprietário | Remover produto |
+| Produtos | `POST /api/products/:id/imagem` | Produtor validado, proprietário | Enviar imagem |
+| Produtores | `GET /api/producers` | Público | Listar produtores validados |
+| Produtores | `GET /api/producers/:id` | Público | Consultar página pública |
+| Encomendas | `POST /api/orders` | Comprador | Criar encomenda |
+| Encomendas | `GET /api/orders` | Comprador ou produtor | Consultar encomendas permitidas |
+| Encomendas | `GET /api/orders/:id` | Comprador ou produtor | Consultar encomenda |
+| Encomendas | `PATCH /api/orders/:id/estado` | Produtor autorizado | Atualizar estado |
+| Leilões | `POST /api/auctions` | Produtor validado | Criar leilão |
+| Leilões | `GET /api/auctions` | Público | Listar leilões |
+| Leilões | `GET /api/auctions/:id` | Público | Consultar leilão |
+| Leilões | `GET /api/auctions/:id/bids` | Público | Consultar histórico de licitações |
+| Avaliações | `POST /api/reviews` | Comprador | Avaliar encomenda entregue |
+| Avaliações | `GET /api/reviews` | Público | Consultar avaliações visíveis |
+| Avaliações | `POST /api/reviews/:id/denuncia` | Autenticado | Denunciar avaliação |
+| Administração | `GET /api/admin/estatisticas` | Administrador | Consultar estatísticas |
+| Administração | `GET /api/admin/produtores/pendentes` | Administrador | Listar produtores pendentes |
+| Administração | `PATCH /api/admin/produtores/:id/validacao` | Administrador | Aprovar ou rejeitar produtor |
+| Administração | `GET /api/admin/reviews/denunciadas` | Administrador | Consultar avaliações denunciadas |
+| Administração | `PATCH /api/admin/reviews/:id` | Administrador | Ocultar ou reativar avaliação |
 
-Foi usado `PUT` para a alteração de um produto (o recurso é enviado de forma completa a partir do formulário) e `PATCH` para alterações parciais e bem delimitadas (estado de uma encomenda, validação de um produtor, visibilidade de uma avaliação). As ações que não são CRUD puro (denunciar, validar) foram modeladas como sub-recursos.
+### 4.2 Códigos HTTP
 
-O estado das encomendas segue uma máquina de estados fixa — `pendente → confirmada → pronta → entregue` — e a API rejeita saltos ou recuos com `409 Conflict`. Cada mudança é notificada ao comprador em tempo real através da sua sala pessoal (evento `encomenda-atualizada`).
+A API utiliza os códigos HTTP para indicar o resultado das operações.
 
-### 4.2 Códigos de estado
-
-| Código | Quando é usado |
+| Código | Utilização |
 |---|---|
-| `200 OK` | Leituras e alterações bem-sucedidas |
-| `201 Created` | Criação de conta, produto, encomenda, leilão ou avaliação (a criação de encomenda devolve também o cabeçalho `Location`) |
-| `204 No Content` | Remoção de um produto |
-| `400 Bad Request` | Dados em falta ou inválidos, IDs mal formados (`CastError`), erros de validação do Mongoose |
-| `401 Unauthorized` | Pedido sem token, token inválido ou expirado, credenciais erradas no login |
-| `403 Forbidden` | Token válido mas papel sem permissão, ou produtor ainda não validado |
-| `404 Not Found` | Recurso inexistente ou que não pertence ao utilizador; rota desconhecida em `/api` |
-| `409 Conflict` | Email já registado, stock insuficiente, transição de estado não permitida, avaliação duplicada ou de encomenda ainda não entregue |
-| `500 Internal Server Error` | Erros não previstos (tratados no `errorHandler`, sem expor detalhes internos) |
+| `200 OK` | Consulta ou alteração realizada |
+| `201 Created` | Recurso criado |
+| `204 No Content` | Recurso removido sem conteúdo de resposta |
+| `400 Bad Request` | Dados inválidos ou incompletos |
+| `401 Unauthorized` | Token ausente, inválido ou credenciais incorretas |
+| `403 Forbidden` | Usuário sem permissão |
+| `404 Not Found` | Recurso não encontrado ou não acessível |
+| `409 Conflict` | Conflito de dados, duplicidade ou transição não permitida |
+| `500 Internal Server Error` | Erro interno não previsto |
 
-As respostas de erro têm sempre o mesmo formato JSON: `{ "erro": "mensagem" }`, opcionalmente com `detalhes`.
+As operações de atualização de estado de encomendas seguem uma sequência definida: `pendente`, `confirmada`, `pronta` e `entregue`. A API valida as transições para impedir alterações incompatíveis com o fluxo previsto.
 
-### 4.3 Documentação (OpenAPI / Swagger)
+### 4.3 Documentação OpenAPI e Swagger
 
-A API está descrita em `api/openapi.yaml` (OpenAPI 3.0.3) e é servida com o `swagger-ui-express` em **`/api-docs`**. Todos os caminhos da tabela anterior estão documentados, com parâmetros, corpos de pedido e respostas. As rotas protegidas declaram o esquema de segurança `bearerAuth` (HTTP Bearer, formato JWT), o que permite testar a API diretamente no Swagger UI com o botão *Authorize*.
+A API possui um arquivo `api/openapi.yaml`, escrito segundo a especificação OpenAPI 3.0.3.
 
-- Local: http://localhost:3000/api-docs
-- Produção: [PREENCHER: URL público]/api-docs
+A documentação é disponibilizada por meio do Swagger UI, utilizando as bibliotecas `swagger-ui-express` e `yamljs`.
 
----
+O Swagger permite consultar os caminhos documentados e visualizar as operações da API. Também apresenta o mecanismo de autenticação Bearer JWT.
+
+**Endereço local:** http://localhost:3000/api-docs
+
+A documentação existente representa uma versão inicial e simplificada da especificação. Nem todas as operações possuem detalhamento completo de parâmetros, corpos de requisição e respostas, sendo esse um ponto de melhoria.
 
 ## 5. Modelo de dados
 
 ### 5.1 Coleções
 
-| Coleção | Conteúdo principal |
+A persistência utiliza MongoDB e Mongoose. Os principais dados estão organizados em seis coleções.
+
+| Coleção | Conteúdo |
 |---|---|
-| `users` | nome, email (único), `passwordHash` (`select: false`), papel; subdocumento `produtor` com exploração, descrição, localidade, localização e `validado` |
-| `products` | referência ao produtor, nome, categoria (enum), preço, unidade, stock, biológico, épocas, `imagemUrl` |
-| `orders` | referências ao comprador, ao produtor e (opcional) ao leilão; **linhas embebidas**; estado; entrega |
-| `auctions` | produtor, produto, lote, preço base, incremento, **licitação atual embebida**, início, fim, estado |
-| `bids` | referência ao leilão e ao comprador, valor, data |
-| `reviews` | autor, produtor, produto, encomenda, classificação 1–5, comentário, denúncias, denunciantes, visível |
+| `users` | Usuários, credenciais protegidas, papéis e informações dos produtores |
+| `products` | Produtos, preços, estoque, categorias, épocas e endereços das imagens |
+| `orders` | Comprador, produtor, linhas da encomenda, estado e informações de entrega |
+| `auctions` | Produtor, lote, preço inicial, incremento, licitação atual e horários |
+| `bids` | Histórico de licitações, comprador, leilão e valor |
+| `reviews` | Avaliações, classificação, comentário, denúncias e visibilidade |
 
-```mermaid
-erDiagram
-    USER ||--o{ PRODUCT : "produz"
-    USER ||--o{ ORDER : "compra / vende"
-    USER ||--o{ AUCTION : "cria"
-    AUCTION ||--o{ BID : "recebe"
-    AUCTION |o--o| ORDER : "gera"
-    ORDER ||--o| REVIEW : "é avaliada em"
-    USER ||--o{ REVIEW : "escreve / recebe"
-```
+### 5.2 Embedding e linking
 
-### 5.2 Embedding vs linking
+Foram utilizadas duas formas de representar relacionamentos.
 
-| Decisão | Opção | Justificação |
-|---|---|---|
-| Dados do produtor dentro do utilizador | **Embedding** (`user.produtor`) | Relação 1:1, lidos sempre com o utilizador; evita uma coleção e um *join* extra |
-| Produtos → produtor | **Linking** | Um produtor tem muitos produtos que são pesquisados de forma independente no catálogo; os dados do produtor mudam sem afetar os produtos |
-| Linhas da encomenda | **Embedding** com cópia de `nome` e `precoUnit` | As linhas são sempre lidas com a encomenda e nunca isoladamente. A cópia do nome e do preço é intencional: a encomenda tem de manter o preço do momento da compra, mesmo que o produtor altere o produto depois |
-| Encomenda → comprador, produtor | **Linking** | Entidades independentes, partilhadas por muitas encomendas |
-| Licitações → leilão | **Linking** (coleção `bids`) | Um leilão pode receber centenas de licitações; embebê-las faria crescer o documento sem limite (o limite do MongoDB é 16 MB) e tornaria cada atualização mais pesada |
-| Licitação atual dentro do leilão | **Embedding** (`licitacaoAtual`) | É o dado mais lido e o que tem de ser atualizado de forma atómica (secção 7); estando no próprio documento, a validação e a escrita fazem-se numa só operação |
-| Avaliações → encomenda, produtor | **Linking** | São consultadas por produtor e moderadas pelo administrador de forma independente; a média é calculada por agregação |
+**Embedding**
+
+Os dados específicos do produtor são armazenados dentro do documento do usuário. As linhas da encomenda também são armazenadas no próprio documento, incluindo uma cópia do nome e do preço do produto no momento da compra.
+
+A licitação atual também fica embutida no documento do leilão, permitindo consultar e atualizar o valor atual diretamente.
+
+**Linking**
+
+Produtos, encomendas, usuários, avaliações e licitações possuem referências a outras coleções quando as entidades precisam ser consultadas ou gerenciadas independentemente.
+
+As licitações são armazenadas em uma coleção própria porque um leilão pode receber muitos registros ao longo do tempo. Essa organização evita o crescimento contínuo do documento principal do leilão.
 
 ### 5.3 Índices
 
-| Coleção | Índice | Para quê |
+Foram identificados os seguintes índices e restrições:
+
+| Coleção | Índice ou restrição | Finalidade |
 |---|---|---|
-| `users` | `{ email: 1 }` único | Login rápido e garantia de email único, mesmo com registos simultâneos (erro `11000` → `409`) |
-| `orders` | `{ leilao: 1 }` único e *sparse* | Garante que um leilão gera no máximo uma encomenda; o *sparse* ignora as encomendas normais (sem leilão) |
-| `bids` | `{ leilao: 1 }` | Carregar rapidamente o histórico de um leilão |
-| `reviews` | `{ encomenda: 1 }` único | Uma só avaliação por encomenda |
-| `reviews` | `{ produtor: 1, visivel: 1, createdAt: -1 }` | Avaliações visíveis de um produtor, das mais recentes para as mais antigas, servidas diretamente pelo índice |
+| `users` | Email único | Evitar cadastros duplicados |
+| `orders` | Referência ao leilão única e esparsa | Impedir mais de uma encomenda para o mesmo leilão |
+| `bids` | Referência ao leilão | Facilitar a consulta do histórico |
+| `reviews` | Referência à encomenda única | Impedir mais de uma avaliação por encomenda |
+| `reviews` | Produtor, visibilidade e data | Consultar avaliações visíveis por produtor |
 
-[PREENCHER se forem criados: índices em `products`, por exemplo `{ categoria: 1, preco: 1 }` para os filtros do catálogo e `{ produtor: 1 }` para a página do produtor — ver secção 9.]
+Não foram identificados índices personalizados equivalentes para todos os filtros do catálogo. A criação de índices adicionais para pesquisa e filtragem é uma melhoria possível.
 
-### 5.4 Exemplos de pesquisas
+### 5.4 Consultas e operações
 
-**Pesquisa no catálogo** (`GET /api/products?q=mel&categoria=Mel&precoMax=10&bio=true&epoca=Verão`):
+A API utiliza consultas Mongoose para filtrar produtos, consultar produtores, obter avaliações e calcular estatísticas administrativas.
 
-```js
-Product.find({
-  nome: { $regex: 'mel', $options: 'i' },   // o termo é escapado antes
-  categoria: 'Mel',
-  preco: { $lte: 10 },
-  biologico: true,
-  epocas: 'Verão'
-}).populate('produtor', 'nome produtor.localidade').sort({ createdAt: -1 });
-```
+Também utiliza operações de agregação do MongoDB para obter informações como médias de avaliações e totais de encomendas.
 
-O termo de pesquisa é limitado a 100 caracteres e os caracteres especiais de expressões regulares são escapados, para evitar pesquisas abusivas (*ReDoS*).
-
-**Avaliação média por produtor** (`GET /api/producers`):
-
-```js
-Review.aggregate([
-  { $match: { visivel: true } },
-  { $group: { _id: '$produtor', media: { $avg: '$classificacao' }, total: { $sum: 1 } } }
-]);
-```
-
-**Valor total das encomendas** (`GET /api/admin/estatisticas`):
-
-```js
-Order.aggregate([
-  { $unwind: '$linhas' },
-  { $group: { _id: null, total: { $sum: { $multiply: ['$linhas.precoUnit', '$linhas.quantidade'] } } } }
-]);
-```
-
-As estatísticas do administrador correm várias contagens e agregações em paralelo com `Promise.all`.
-
-**Reserva atómica de stock** (`POST /api/orders`):
-
-```js
-Product.findOneAndUpdate(
-  { _id: id, produtor: produtorId, stock: { $gte: quantidade } },
-  { $inc: { stock: -quantidade } },
-  { new: true }
-);
-```
-
-A condição `stock >= quantidade` e o decremento são feitos na mesma operação, por isso duas encomendas simultâneas nunca deixam o stock negativo. Se uma das linhas falhar, o stock já reservado das outras é devolvido (compensação).
-
----
+Um exemplo importante de atualização atômica está na reserva de estoque: a API verifica se existe quantidade suficiente e decrementa o estoque na mesma operação. Isso reduz o risco de duas encomendas simultâneas reservarem unidades que já não estão disponíveis.
 
 ## 6. Segurança
 
-### 6.1 Autenticação com JWT
+### 6.1 Autenticação JWT
 
-- No **registo** e no **login**, a API devolve um token JWT assinado com `JWT_SECRET`, com o `id` e o `papel` do utilizador e validade configurável (`JWT_EXPIRES_IN`, por omissão 2 horas).
-- A SPA envia o token no cabeçalho `Authorization: Bearer <token>` em todos os pedidos e no *handshake* do Socket.io (`auth: { token }`).
-- O mesmo segredo valida os pedidos HTTP (middleware `auth`) e as ligações de socket (`io.use`), por isso só utilizadores autenticados podem entrar em salas de leilão ou receber notificações.
+A autenticação utiliza JSON Web Tokens.
 
-### 6.2 Papéis e autorização
+No cadastro ou login, a API gera um token assinado com um segredo armazenado em variável de ambiente.
 
-- O middleware `auth(...papeis)` responde `401` sem token ou com token inválido, e `403` se o papel não estiver na lista permitida.
-- O middleware `produtorValidado` consulta a base de dados e bloqueia (`403`) produtores que o administrador ainda não validou, em todas as operações de venda (produtos, leilões, encomendas).
-- Além do papel, a API verifica a **posse dos recursos**: um produtor só altera os seus produtos e encomendas; um comprador só vê as suas encomendas; nos sockets, só compradores licitam e um produtor não pode licitar no seu próprio leilão.
-- O registo **não permite criar administradores**: o papel tem de ser `comprador` ou `produtor`.
+O token contém informações de identificação e papel do usuário e possui validade configurável.
 
-### 6.3 Passwords
+O frontend envia o token no cabeçalho `Authorization: Bearer` nas operações protegidas. O Socket.io também utiliza o token durante o processo de conexão.
 
-- As passwords são guardadas com **bcrypt** (custo 12) e nunca em claro. É exigido um mínimo de 8 caracteres.
-- O campo `passwordHash` tem `select: false` no schema, por isso nunca é devolvido por engano; só é pedido explicitamente no login.
-- No login, a resposta é a mesma (`401 Credenciais inválidas`) para email inexistente e password errada, para não revelar que emails estão registados.
+### 6.2 Autorização por papel
 
-### 6.4 Validação de dados
+A aplicação possui os papéis comprador, produtor e administrador.
 
-- Os dados de entrada são validados nas rotas (tipos, campos obrigatórios, enumerações, valores positivos) e só os campos permitidos são copiados para o modelo, o que evita a alteração de campos protegidos (*mass assignment*).
-- Os IDs são verificados com `isValidObjectId` antes de chegar à base de dados.
-- O upload de imagens aceita apenas JPEG, PNG e WebP até 5 MB, e os ficheiros recebem um nome aleatório (`randomUUID`).
+O middleware `auth` verifica a validade do token e o papel do usuário.
 
-### 6.5 HTTPS
+O middleware `produtorValidado` consulta o cadastro do produtor e impede que uma conta ainda não aprovada realize operações de venda.
 
-Em produção, a aplicação é servida em HTTPS pelo serviço PaaS da Cloud, que trata do certificado TLS. Como a SPA, a API e os sockets estão no mesmo domínio, toda a comunicação (incluindo os WebSockets, em `wss://`) é cifrada. [PREENCHER: confirmar a opção "HTTPS Only" ativa no serviço.]
+Além disso, o backend verifica a propriedade dos recursos. Um produtor não pode alterar produtos de outro produtor, e os usuários só podem consultar ou alterar encomendas às quais tenham acesso.
 
-### 6.6 Gestão de segredos
+O cadastro público permite somente os papéis comprador e produtor, impedindo a criação livre de contas administrativas.
 
-- Os segredos (`MONGODB_URI`, `JWT_SECRET`, `STORAGE_CONN`) são lidos de variáveis de ambiente.
-- Localmente estão num ficheiro `.env`, que está no `.gitignore`; o repositório só tem o `.env.example` com os nomes das variáveis.
-- Em produção são configurados nas definições da aplicação no fornecedor Cloud, e não no código.
-- `CLIENT_URL` limita a origem aceite pelo CORS na API e nos sockets.
+### 6.3 Proteção de senhas
 
----
+As senhas são armazenadas por meio de hashes gerados com bcryptjs, utilizando custo 12.
+
+O campo `passwordHash` está configurado com `select: false` no modelo de usuário, evitando que seja retornado nas consultas comuns.
+
+Durante o login, o hash é recuperado explicitamente para comparação com a senha fornecida.
+
+### 6.4 Validação de dados e upload
+
+As rotas validam campos obrigatórios, valores, identificadores e permissões antes de realizar operações no banco.
+
+O upload de imagens utiliza Multer e aceita arquivos JPEG, PNG e WebP com limite de 5 MB.
+
+Os arquivos recebem identificadores aleatórios antes de serem enviados ao Azure Blob Storage.
+
+### 6.5 Gestão de segredos
+
+As informações sensíveis são mantidas em variáveis de ambiente, como:
+
+- `MONGODB_URI`
+- `JWT_SECRET`
+- `STORAGE_CONN`
+- `STORAGE_CONTAINER`
+- `CLIENT_URL`
+
+O arquivo `.env` está incluído no `.gitignore`, evitando que credenciais sejam adicionadas ao repositório.
+
+O projeto disponibiliza um arquivo `.env.example` com os nomes das variáveis necessárias, sem seus valores secretos.
 
 ## 7. Tempo real e consistência dos leilões
 
-### 7.1 Salas
+### 7.1 Salas do Socket.io
 
-| Sala | Quem entra | Para quê |
-|---|---|---|
-| `user:<id>` | Cada utilizador, automaticamente ao ligar | Notificações pessoais: encomenda atualizada, leilão ganho, leilão terminado |
-| `leilao:<id>` | Quem abre a página do leilão (`entrar`) | Licitações em direto, presença, fim do leilão |
+A aplicação utiliza salas para organizar a comunicação entre os participantes.
+
+| Sala | Utilização |
+|---|---|
+| `user:<id>` | Receber notificações destinadas a um usuário |
+| `leilao:<id>` | Receber atualizações relacionadas a um leilão |
+
+Ao estabelecer a conexão, o usuário autenticado entra na sua sala pessoal. Ao acessar uma sala de leilão, o socket entra na sala correspondente.
 
 ### 7.2 Eventos
 
-| Evento | Sentido | Conteúdo |
-|---|---|---|
-| `entrar` / `sair` | cliente → servidor | ID do leilão |
-| `licitar` | cliente → servidor | `{ leilaoId, valor }` + *callback* de confirmação |
-| `estado` | servidor → cliente | Estado completo do leilão ao entrar |
-| `nova-licitacao` | servidor → sala | Valor, comprador e hora da nova licitação |
-| `recusada` | servidor → cliente | Motivo da recusa |
-| `presenca` | servidor → sala | Número de pessoas na sala |
-| `terminado` | servidor → sala | Vencedor e valor final |
-| `leilao-ganho` | servidor → `user:<vencedor>` | Aviso ao vencedor de que foi criada uma encomenda |
-| `leilao-terminado` | servidor → `user:<produtor>` | Aviso ao produtor |
-| `encomenda-atualizada` | servidor → `user:<comprador>` | Novo estado da encomenda |
+Entre os principais eventos utilizados estão:
 
-O evento `licitar` usa o *acknowledgement* do Socket.io: o cliente recebe uma resposta direta `{ sucesso, mensagem }`, para além do evento difundido para a sala.
-
-### 7.3 Presença
-
-O número de participantes é o tamanho da sala (`io.sockets.adapter.rooms.get(sala).size`), difundido no evento `presenca` sempre que alguém entra ou sai. Quando um utilizador fecha a página, o evento `disconnecting` percorre as salas de leilão onde estava e volta a emitir a presença (com `setImmediate`, para contar já sem esse socket).
-
-### 7.4 Licitações simultâneas
-
-O problema: se dois compradores licitarem ao mesmo tempo o mesmo valor, uma solução ingénua (ler o leilão, comparar em JavaScript, gravar) aceitaria as duas, porque ambas leem o mesmo valor antes de qualquer escrita.
-
-A solução é fazer a verificação e a escrita **numa única operação atómica** do MongoDB, `findOneAndUpdate`, com todas as condições no filtro:
-
-```js
-Auction.findOneAndUpdate(
-  {
-    _id: leilaoId,
-    estado: { $in: ['agendado', 'ativo'] },
-    iniciaEm: { $lte: agora },
-    terminaEm: { $gt: agora },
-    produtor: { $ne: socket.user.id },
-    $expr: { $gte: [oferta, { $add: ['$licitacaoAtual.valor', '$incremento'] }] }
-  },
-  { $set: { 'licitacaoAtual.valor': oferta, 'licitacaoAtual.comprador': socket.user.id, estado: 'ativo' } },
-  { new: true }
-);
-```
-
-O MongoDB garante que as operações sobre um único documento são atómicas. Com duas licitações de igual valor:
-
-1. A primeira encontra o documento, a condição `oferta ≥ atual + incremento` é verdadeira e o valor é atualizado.
-2. A segunda é avaliada já sobre o documento atualizado; a condição passa a ser falsa, o filtro não encontra nenhum documento e o resultado é `null`.
-3. A segunda recebe `recusada` com o motivo; só a primeira é registada na coleção `bids` e difundida como `nova-licitacao`.
-
-O mesmo filtro impede licitações antes do início, depois do fim, em leilões terminados ou do próprio produtor, porque nenhuma dessas verificações depende de dados lidos antes da escrita.
-
-### 7.5 Encerramento dos leilões
-
-O serviço `cicloLeiloes` corre a cada 5 segundos e procura leilões com `terminaEm ≤ agora` que ainda não estejam terminados. Para cada um:
-
-- sem licitações: marca o leilão como `terminado` e avisa o produtor;
-- com vencedor: cria a encomenda com o lote e o valor final e marca o leilão como `terminado`.
-
-O encerramento é **idempotente**, ou seja, pode correr mais do que uma vez sem efeitos duplicados:
-
-- o índice único em `orders.leilao` impede que o mesmo leilão gere duas encomendas (o erro `11000` é tratado e a encomenda existente é aproveitada);
-- a passagem a `terminado` é feita também com `findOneAndUpdate` condicionado ao estado anterior, por isso só uma execução consegue efetivar o encerramento e só essa envia as notificações.
-
-Isto protege o sistema se o ciclo demorar mais de 5 segundos ou se houver mais do que uma instância do servidor.
-
----
-
-## 8. Deployment na Cloud
-
-[PREENCHER/CONFIRMAR: a tabela abaixo assume o cenário para o qual o código está preparado — Azure para a aplicação e o storage, MongoDB Atlas para a base de dados. Ajustar se tiverem sido usados outros serviços.]
-
-### 8.1 Serviços e modelos
-
-| Componente | Serviço | Modelo | Justificação |
-|---|---|---|---|
-| Aplicação (API + sockets + SPA) | [Azure App Service (Linux, Node 20)] | **PaaS** | O fornecedor gere o sistema operativo, o runtime Node, o balanceamento e o certificado HTTPS; só é publicado o código. Suporta WebSockets (opção a ativar) |
-| Base de dados | MongoDB Atlas (cluster M0) | **DBaaS / PaaS** | Base de dados gerida: réplicas, cópias de segurança e atualizações tratadas pelo fornecedor |
-| Imagens dos produtos | Azure Blob Storage | **PaaS** (storage como serviço) | Armazenamento de objetos barato e escalável; as imagens são servidas diretamente por URL, sem passar pelo servidor da aplicação |
-| Código e versões | GitHub | SaaS | Controlo de versões e, opcionalmente, deployment contínuo com GitHub Actions |
-
-Não foi usado nenhum serviço **IaaS** (máquinas virtuais): para uma aplicação deste tamanho, gerir um servidor (sistema operativo, atualizações, firewall, certificados) teria mais custo e risco do que benefício. Também não foi usado um **BaaS** (como Firebase) porque o enunciado pede uma API própria.
-
-### 8.2 Configuração
-
-Variáveis de ambiente definidas no serviço (nunca no repositório):
-
-| Variável | Uso |
+| Evento | Finalidade |
 |---|---|
-| `MONGODB_URI` | Ligação ao cluster Atlas |
-| `JWT_SECRET` | Assinatura dos tokens |
-| `JWT_EXPIRES_IN` | Validade dos tokens |
-| `STORAGE_CONN`, `STORAGE_CONTAINER` | Ligação ao Blob Storage e nome do contentor |
-| `CLIENT_URL` | Origem permitida no CORS |
-| `PORT` | Definida pelo próprio serviço |
+| `entrar` | Entrar em uma sala de leilão |
+| `sair` | Sair de uma sala |
+| `licitar` | Enviar uma nova licitação |
+| `estado` | Receber o estado atual do leilão |
+| `nova-licitacao` | Informar uma nova oferta aos participantes |
+| `recusada` | Informar que uma oferta não foi aceita |
+| `presenca` | Atualizar o número de participantes |
+| `iniciado` | Informar que o leilão começou |
+| `terminado` | Informar que o leilão terminou |
+| `leilao-ganho` | Notificar o comprador vencedor |
+| `leilao-terminado` | Notificar o produtor |
+| `encomenda-atualizada` | Informar uma mudança no estado da encomenda |
 
-Passos de publicação:
+O evento `licitar` utiliza o mecanismo de confirmação do Socket.io, conhecido como acknowledgement. Dessa forma, o cliente recebe uma resposta indicando se a oferta foi aceita ou recusada.
 
-1. `npm run build` na pasta `web/` e cópia de `web/dist` para `api/public`;
-2. publicação da pasta `api/` no serviço (por GitHub Actions ou pela extensão Azure do VS Code);
-3. no Atlas, permitir o acesso a partir dos IPs de saída do serviço;
-4. no serviço, ativar *Web sockets* e *HTTPS Only*.
+### 7.3 Licitações simultâneas
 
-### 8.3 Custos estimados
+Um dos desafios técnicos foi impedir que duas ofertas simultâneas fossem aceitas com base no mesmo valor anterior.
 
-[CONFIRMAR os valores na calculadora de preços do fornecedor antes de entregar.]
+Uma implementação baseada apenas em leitura, comparação e gravação separadas poderia permitir que dois compradores lessem o mesmo valor e enviassem ofertas concorrentes.
 
-| Serviço | Plano | Custo mensal aproximado |
+Para evitar esse problema, o código utiliza `Auction.findOneAndUpdate()` com condições no próprio filtro.
+
+A operação verifica, entre outras condições:
+
+- Se o leilão existe.
+- Se o estado permite licitações.
+- Se o horário atual está dentro do período do leilão.
+- Se o comprador não é o produtor.
+- Se a oferta respeita o incremento mínimo.
+
+A atualização do valor e do comprador acontece na mesma operação sobre o documento do leilão.
+
+Foi realizado um teste manual com duas conexões Socket.io enviando simultaneamente ofertas de mesmo valor. O resultado foi uma oferta aceita e outra recusada, demonstrando o funcionamento da proteção contra essa situação específica.
+
+### 7.4 Encerramento automático
+
+O serviço `api/src/services/cicloLeiloes.js` executa verificações periódicas a cada cinco segundos.
+
+O processo identifica leilões cujo horário de início chegou e altera seu estado para ativo.
+
+Quando o horário de encerramento é atingido, o serviço verifica se existe um comprador vencedor.
+
+Se não houver comprador, o leilão é marcado como terminado e o produtor recebe uma notificação.
+
+Se houver vencedor, o serviço consulta a coleção `bids` para confirmar que o lance correspondente está registrado. Em seguida, cria uma encomenda associada ao leilão e marca o leilão como terminado.
+
+O modelo de encomenda possui uma restrição de unicidade para a referência do leilão. Isso ajuda a impedir a criação de mais de uma encomenda para o mesmo leilão.
+
+Se a encomenda já tiver sido criada em uma execução anterior, o código trata a duplicidade e consulta a encomenda existente.
+
+### 7.5 Limitação identificada
+
+A atualização do documento do leilão e a criação do registro correspondente na coleção `bids` são realizadas em operações separadas.
+
+Isso significa que, caso a atualização do leilão seja concluída e a gravação do lance falhe, pode ocorrer uma inconsistência entre a licitação atual e o histórico.
+
+O serviço de encerramento procura o lance vencedor na coleção `bids`. Se não encontrar esse registro, não cria a encomenda e não conclui o encerramento naquele ciclo.
+
+Essa situação foi identificada como uma limitação da implementação. Uma melhoria futura seria utilizar uma transação do MongoDB para garantir que a atualização do leilão e a gravação da licitação sejam confirmadas conjuntamente.
+
+## 8. Deployment e serviços na Cloud
+
+### 8.1 Serviços utilizados
+
+O projeto utiliza serviços gerenciados para persistência e armazenamento de imagens.
+
+| Componente | Serviço | Utilização |
 |---|---|---|
-| Azure App Service | F1 (gratuito) para demonstração / B1 para uso real | 0 € / ~12 € |
-| MongoDB Atlas | M0 (gratuito, 512 MB) | 0 € |
-| Azure Blob Storage | LRS, poucos GB | < 1 € |
-| **Total** | | **0 € a ~13 €/mês** |
+| Banco de dados | MongoDB Atlas | Persistência dos dados da aplicação |
+| Imagens | Azure Blob Storage | Armazenamento dos arquivos enviados pelos produtores |
+| Aplicação | Azure App Service | Serviço configurado para hospedar o backend e a aplicação |
+| Desenvolvimento | Ambiente local | Execução e demonstração da aplicação |
 
-Com uma conta Azure for Students, os custos do plano B1 ficam cobertos pelo crédito anual.
+O MongoDB Atlas foi configurado e recebeu os dados utilizados pelo projeto.
 
-### 8.4 URLs públicos
+O Azure Blob Storage também foi configurado, com um contêiner destinado às imagens dos produtos. O envio de imagens foi testado, e os endereços retornados foram armazenados nos documentos do MongoDB.
 
-- Aplicação: [PREENCHER]
-- API: [PREENCHER]/api
-- Documentação: [PREENCHER]/api-docs
-- Verificação: [PREENCHER]/api/health
+### 8.2 Tentativa de publicação da aplicação
 
----
+Foi criado e configurado um Azure App Service para hospedar a aplicação.
+
+Também foram preparadas as configurações de ambiente necessárias para a conexão com o MongoDB Atlas, o Azure Blob Storage e a autenticação.
+
+Entretanto, a publicação não foi concluída. Durante o processo, o serviço apresentou problemas de quota (`QuotaExceeded`), e a verificação pública da API retornou HTTP 403.
+
+Por esse motivo, a aplicação não ficou disponível publicamente para acesso externo.
+
+A versão funcional do sistema foi mantida no ambiente local, onde o frontend e a API podem ser executados para demonstração.
+
+Assim, é importante distinguir a configuração dos serviços de dados na Cloud da publicação efetiva da aplicação: o MongoDB Atlas e o Azure Blob Storage foram utilizados com sucesso, mas o deployment da aplicação no Azure App Service permaneceu incompleto.
+
+### 8.3 Configuração e segurança
+
+As credenciais de acesso aos serviços são mantidas em variáveis de ambiente.
+
+O arquivo `.env` não deve ser compartilhado nem enviado ao repositório. O arquivo `.env.example` apresenta somente os nomes das configurações necessárias.
+
+A configuração local utiliza os endereços de desenvolvimento do frontend e da API.
+
+### 8.4 Custos e limitações
+
+Foi utilizado um plano gratuito F1 para a tentativa de hospedagem no Azure App Service. A publicação foi limitada por problemas de quota.
+
+O MongoDB Atlas e o Azure Blob Storage foram configurados conforme os planos e recursos disponíveis nas respectivas contas.
+
+Não é apresentado um custo mensal definitivo, pois isso dependeria da confirmação dos planos efetivamente utilizados, do consumo de armazenamento, das operações realizadas e das condições da conta Azure.
 
 ## 9. Dificuldades e trabalho futuro
 
-### 9.1 Dificuldades
+### 9.1 Principais dificuldades
 
-[PREENCHER/AJUSTAR com a experiência pessoal. Sugestões com base no código:]
+Durante o desenvolvimento, algumas funcionalidades exigiram maior atenção.
 
-- **Concorrência nas licitações:** a primeira versão lia o leilão, comparava em JavaScript e gravava; foi necessário perceber porque é que isso aceita duas licitações simultâneas e mudar para uma única operação atómica com `$expr`.
-- **Encerramento de leilões sem duplicados:** garantir que um leilão só gera uma encomenda mesmo que o ciclo corra duas vezes, o que levou ao índice único *sparse* em `orders.leilao`.
-- **Stock nas encomendas:** reservar o stock de vários produtos sem transação e devolvê-lo se uma linha falhar.
-- **Ligação entre REST e sockets:** partilhar a instância do Socket.io com as rotas para notificar o comprador quando a encomenda muda de estado.
-- **Servir a SPA e a API no mesmo serviço**, incluindo o *fallback* para o `index.html` sem esconder os `404` da API.
+**Autenticação e autorização**
 
-### 9.2 Trabalho futuro
+Foi necessário implementar a autenticação com JWT e separar as permissões de compradores, produtores e administradores. Também foi necessário impedir que produtores não aprovados realizassem operações de venda.
 
-- **Transações MongoDB** no checkout e na licitação: hoje a atualização do leilão e a criação do registo em `bids` são duas operações separadas; se a segunda falhar, o leilão fica com uma licitação atual sem registo correspondente e o encerramento não cria a encomenda. Uma transação (ou guardar a licitação primeiro) resolve este caso.
-- **Índices em `products`** para os filtros do catálogo (`categoria`, `preco`, `produtor`) e um índice de texto para a pesquisa por nome, em vez de `$regex`.
-- **Catálogo:** filtros por época e preço máximo e ordenação na interface (a API já os suporta), e destaque do leilão em direto na página inicial.
-- **Modelo:** guardar o total da encomenda e o histórico de mudanças de estado; tipo de comprador (particular/restaurante), morada de entrega e favoritos no utilizador.
-- **Segurança:** limitar tentativas de login (*rate limiting*), cabeçalhos HTTP de segurança (`helmet`) e *refresh tokens*.
-- **Testes automatizados** da API (Jest + Supertest) e testes de carga às licitações simultâneas.
-- **Escalabilidade:** com várias instâncias, usar o *adapter* Redis do Socket.io para partilhar as salas entre servidores.
-- **Pagamentos online** e mapa com a localização dos produtores (o campo `localizacao` já existe).
+**Gerenciamento de imagens**
 
----
+A integração entre Multer, Azure Blob Storage e MongoDB exigiu organizar o envio do arquivo e o armazenamento do endereço correspondente no produto.
 
-## 10. Declaração de uso de ferramentas
+**Encomendas e estoque**
 
-### 10.1 Bibliotecas e ferramentas
+A criação de encomendas exige verificar a disponibilidade dos produtos e atualizar o estoque. A reserva é feita com uma operação condicional no MongoDB para evitar que a quantidade disponível fique negativa.
 
-| Camada | Biblioteca | Para quê |
+**Comunicação em tempo real**
+
+A implementação dos leilões exigiu compreender o funcionamento das salas do Socket.io, a autenticação das conexões e a transmissão de eventos entre os participantes.
+
+**Concorrência nas licitações**
+
+Foi necessário utilizar uma atualização atômica do documento do leilão para impedir que ofertas simultâneas de mesmo valor fossem aceitas.
+
+**Encerramento automático**
+
+O serviço de encerramento precisou considerar leilões sem vencedor, criação de encomendas, notificações e prevenção de duplicidade.
+
+**Publicação na Cloud**
+
+Apesar da configuração do MongoDB Atlas e do Azure Blob Storage, a publicação no Azure App Service foi limitada por problemas de quota, impedindo a disponibilização pública da aplicação.
+
+### 9.2 Melhorias futuras
+
+Algumas melhorias foram identificadas durante o desenvolvimento:
+
+- Utilizar transações MongoDB para garantir consistência entre a atualização do leilão e o registro da licitação.
+- Ampliar a documentação OpenAPI, incluindo corpos de requisição, parâmetros e respostas detalhadas.
+- Criar testes automatizados de integração para a API e para os eventos Socket.io.
+- Criar índices adicionais para otimizar as consultas do catálogo, conforme o comportamento de pesquisa.
+- Ampliar os filtros e as opções de ordenação na interface do catálogo.
+- Implementar mecanismos de limitação de tentativas de login e cabeçalhos adicionais de segurança.
+- Adicionar histórico de alterações dos estados das encomendas.
+- Melhorar a escalabilidade do Socket.io utilizando um adaptador Redis caso a aplicação passe a executar em várias instâncias.
+- Concluir a publicação da aplicação em um serviço Cloud compatível com as necessidades do projeto.
+
+## 10. Ferramentas, bibliotecas e uso de inteligência artificial
+
+### 10.1 Tecnologias e bibliotecas
+
+| Camada | Tecnologia | Utilização |
 |---|---|---|
-| API | express | Servidor HTTP e rotas |
-| | mongoose | Modelos, validação e acesso ao MongoDB |
-| | socket.io | Comunicação em tempo real |
-| | jsonwebtoken | Emissão e validação de tokens JWT |
-| | bcryptjs | Hash das passwords |
-| | cors | Política de origens |
-| | dotenv | Variáveis de ambiente em desenvolvimento |
-| | multer | Receção de ficheiros (upload de imagens) |
-| | @azure/storage-blob | Envio de imagens para o Azure Blob Storage |
-| | swagger-ui-express, yamljs | Documentação interativa da API |
-| SPA | react, react-dom | Interface |
-| | react-router-dom | *Routing* no cliente |
-| | socket.io-client | Ligação ao servidor de sockets |
-| | bootstrap | Componentes e grelha |
-| | sass | Pré-processador CSS |
-| | vite, @vitejs/plugin-react | Servidor de desenvolvimento e build |
+| Frontend | React | Construção da interface |
+| Frontend | Vite | Ambiente de desenvolvimento e compilação |
+| Frontend | React Router | Navegação entre páginas |
+| Frontend | Bootstrap | Componentes e estrutura responsiva |
+| Frontend | SASS | Personalização dos estilos |
+| Frontend | Socket.io Client | Comunicação em tempo real |
+| Backend | Node.js | Ambiente de execução |
+| Backend | Express | API REST |
+| Backend | Mongoose | Modelagem e acesso ao MongoDB |
+| Backend | Socket.io | Comunicação em tempo real |
+| Backend | JSON Web Token | Autenticação |
+| Backend | bcryptjs | Proteção de senhas |
+| Backend | Multer | Recepção de arquivos |
+| Cloud | Azure Blob Storage SDK | Armazenamento de imagens |
+| Documentação | OpenAPI e Swagger UI | Documentação e consulta da API |
+| Controle de versão | Git | Histórico das alterações |
 
-O trabalho partiu do **código base fornecido pelo docente**, que incluía a estrutura do projeto, a ligação à base de dados, o middleware de autenticação, a autenticação dos sockets, as rotas por implementar e os estilos de base.
+O desenvolvimento partiu do código-base disponibilizado pelo docente. A estrutura inicial foi ampliada com a implementação das funcionalidades, regras de negócio, páginas e integrações necessárias.
 
-### 10.2 Assistentes de IA
+### 10.2 Assistentes de inteligência artificial
 
-[PREENCHER com honestidade: que assistentes foram usados (ChatGPT, Claude, GitHub Copilot…) e para quê. Exemplo de formato:]
+Durante o desenvolvimento foram utilizados assistentes de inteligência artificial como ferramentas de apoio.
 
 | Ferramenta | Utilização |
 |---|---|
-| [Nome] | [ex.: explicação de conceitos (operações atómicas no MongoDB, embedding vs linking), apoio na depuração de erros, revisão e redação do relatório] |
+| ChatGPT | Esclarecimento de conceitos, orientação durante a implementação, análise de erros, revisão de código, apoio nos testes e organização da documentação |
+| Claude | Apoio na análise do código e na elaboração inicial do relatório acadêmico |
 
-Todo o código gerado ou sugerido foi revisto, testado e adaptado pelo aluno, que é responsável pelo resultado final.
+Os assistentes foram utilizados como apoio ao processo de aprendizagem e desenvolvimento. As sugestões foram analisadas e adaptadas ao projeto, e o funcionamento das funcionalidades foi verificado por meio da execução da aplicação e de testes.
+
+A responsabilidade pelo código, pelas decisões técnicas, pela validação do funcionamento e pelo conteúdo final do trabalho permanece com o aluno.
+
+---
+
+**Observação final:** a aplicação foi desenvolvida e testada localmente, com integração funcional ao MongoDB Atlas e ao Azure Blob Storage. A publicação pública no Azure App Service não foi concluída devido a limitações de quota do serviço.
